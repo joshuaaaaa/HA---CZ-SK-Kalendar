@@ -6,7 +6,7 @@ import re
 from datetime import date, timedelta
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -46,6 +46,60 @@ _DATE_ONLY_RE = re.compile(
     r"^\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[.-]\d{1,2}|\d{1,2}-\d{1,2})\s*$"
 )
 
+# Start of a new ``date separator name`` entry inside a single chunk of text.
+# Used to split lines where entries are separated by spaces or commas instead
+# of ``|``, so the name of one entry does not swallow the following entries.
+_ENTRY_START_RE = re.compile(
+    r"(?:^|(?<=[\s,;|]))"
+    r"(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[.-]\d{1,2})\s*[-|;]\s*"
+)
+
+_DATE_TOKEN = r"(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[.-]\d{1,2}\.?)"
+_LEADING_DATE_RE = re.compile(r"^\s*" + _DATE_TOKEN + r"[\s,;|-]*")
+_TRAILING_DATE_RE = re.compile(r"[\s,;|-]*" + _DATE_TOKEN + r"\s*$")
+
+
+def _strip_redundant_date(name: str) -> str:
+    """Remove a date that the user repeated inside the event name.
+
+    The state of the ``next_*`` sensors is the plain event name, so a date
+    typed into the name as well (``16-09 | Marie 16-09``) would be shown
+    twice. The date itself stays available in the dedicated date sensor and
+    in the ``date`` attribute.
+    """
+    for pattern in (_LEADING_DATE_RE, _TRAILING_DATE_RE):
+        stripped = pattern.sub("", name).strip()
+        if stripped:
+            name = stripped
+    return name
+
+
+def _split_inline_entries(text: str) -> list[str]:
+    """Split a chunk of text into individual ``date separator name`` entries.
+
+    A single line may hold several entries separated by spaces, commas or
+    semicolons (``16-09-Marie 30-09-Jeroným``). Without this split the name
+    of the first entry would greedily swallow everything that follows.
+    """
+    cleaned = text.strip()
+    if not cleaned:
+        return []
+
+    starts = [m.start() for m in _ENTRY_START_RE.finditer(cleaned)]
+    if len(starts) <= 1:
+        return [cleaned]
+
+    if starts[0] != 0:
+        starts.insert(0, 0)
+
+    chunks: list[str] = []
+    for index, start in enumerate(starts):
+        end = starts[index + 1] if index + 1 < len(starts) else len(cleaned)
+        chunk = cleaned[start:end].strip().rstrip(",;|").strip()
+        if chunk:
+            chunks.append(chunk)
+    return chunks
+
 
 def _iter_custom_entries(raw: str) -> list[str]:
     """Split raw list into individual entry strings.
@@ -67,7 +121,7 @@ def _iter_custom_entries(raw: str) -> list[str]:
             continue
 
         if "|" not in cleaned:
-            entries.append(cleaned)
+            entries.extend(_split_inline_entries(cleaned))
             continue
 
         # Split by | and reassemble date-name pairs
@@ -81,11 +135,13 @@ def _iter_custom_entries(raw: str) -> list[str]:
 
             # If this part is a standalone date, combine with next part as name
             if _DATE_ONLY_RE.match(part) and i + 1 < len(parts) and parts[i + 1].strip():
-                entries.append(f"{part} | {parts[i + 1].strip()}")
+                entries.extend(
+                    _split_inline_entries(f"{part} | {parts[i + 1].strip()}")
+                )
                 i += 2
             else:
                 # Already a complete entry (uses - or ; as date-name separator)
-                entries.append(part)
+                entries.extend(_split_inline_entries(part))
                 i += 1
 
     return entries
@@ -146,7 +202,7 @@ def _parse_custom_list(raw: str) -> list[dict[str, int | str | None]]:
         if not match:
             continue
         date_part = match.group("date").strip()
-        name = match.group("name").strip()
+        name = _strip_redundant_date(match.group("name").strip())
         parsed = _parse_custom_date(date_part)
         if not parsed or not name:
             continue
@@ -257,6 +313,9 @@ async def async_setup_entry(
         CZSKNextSpecialDaySensor(config_entry, country),
         CZSKNextBirthdaySensor(config_entry, country),
         CZSKNextFamilyHolidaySensor(config_entry, country),
+        # Dates of the next custom events (name and date kept separate)
+        CZSKNextBirthdayDateSensor(config_entry, country),
+        CZSKNextFamilyHolidayDateSensor(config_entry, country),
         # Day name sensors
         CZSKTodayDayNameSensor(config_entry, country),
         CZSKTomorrowDayNameSensor(config_entry, country),
@@ -598,6 +657,87 @@ class CZSKNextFamilyHolidaySensor(CZSKBaseSensor):
             attrs["should_notify"] = should_notify
 
         return attrs
+
+
+class CZSKNextCustomEventDateSensor(CZSKBaseSensor):
+    """Base sensor reporting the date of the next custom event.
+
+    Companion to the ``next_*`` sensors, whose state is only the event name.
+    """
+
+    _attr_device_class = SensorDeviceClass.DATE
+
+    @property
+    def _events(self) -> list[dict[str, int | str | None]]:
+        """Return the list of custom events to search."""
+        raise NotImplementedError
+
+    @property
+    def native_value(self) -> date | None:
+        """Return the date of the next custom event."""
+        next_date, _ = _get_next_custom_event(
+            self.today + timedelta(days=1), self._events
+        )
+        return next_date
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return additional attributes."""
+        attrs = super().extra_state_attributes.copy()
+        today = self.today
+        next_date, name = _get_next_custom_event(today + timedelta(days=1), self._events)
+        attrs["reminder_days"] = self._reminder_days
+        attrs["reminder_daily"] = self._reminder_daily
+
+        if next_date and name:
+            days_until = (next_date - today).days
+            in_window = 0 <= days_until <= self._reminder_days
+            should_notify = in_window if self._reminder_daily else days_until == self._reminder_days
+            attrs["name"] = name
+            attrs["days_until"] = days_until
+            attrs["date_formatted"] = f"{next_date.day}. {next_date.month}. {next_date.year}"
+            attrs["in_reminder_window"] = in_window
+            attrs["should_notify"] = should_notify
+
+        return attrs
+
+
+class CZSKNextBirthdayDateSensor(CZSKNextCustomEventDateSensor):
+    """Sensor for the date of the next custom birthday."""
+
+    def __init__(self, config_entry: ConfigEntry, country: str) -> None:
+        """Initialize the next birthday date sensor."""
+        name = (
+            "Datum příštích narozenin"
+            if country == COUNTRY_CZ
+            else "Dátum ďalších narodenín"
+        )
+        super().__init__(config_entry, "next_birthday_date", name, "mdi:calendar-account")
+
+    @property
+    def _events(self) -> list[dict[str, int | str | None]]:
+        """Return the configured birthdays."""
+        return self._custom_birthdays
+
+
+class CZSKNextFamilyHolidayDateSensor(CZSKNextCustomEventDateSensor):
+    """Sensor for the date of the next custom family holiday."""
+
+    def __init__(self, config_entry: ConfigEntry, country: str) -> None:
+        """Initialize the next family holiday date sensor."""
+        name = (
+            "Datum příštího rodinného svátku"
+            if country == COUNTRY_CZ
+            else "Dátum ďalšieho rodinného sviatku"
+        )
+        super().__init__(
+            config_entry, "next_family_holiday_date", name, "mdi:calendar-heart"
+        )
+
+    @property
+    def _events(self) -> list[dict[str, int | str | None]]:
+        """Return the configured family holidays."""
+        return self._custom_holidays
 
 
 _CZ_DAY_NAMES = [
