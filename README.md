@@ -82,10 +82,18 @@ Jarní prázdniny na Slovensku trvají jeden týden a jsou rozděleny do 3 turnu
 V nastavení integrace (Možnosti) můžete zadat **seznam narozenin** a **seznam rodinných svátků**.
 Každá položka musí mít datum.
 
-Formát (jeden záznam na řádek, nebo více záznamů oddělených znakem `|` na jednom řádku):
+Formát (jeden záznam na řádek, nebo více záznamů na jednom řádku):
 - `DD.MM | Název` (opakované každý rok)
 - `YYYY-MM-DD | Název` (jednorázově)
 - Jako oddělovač data a názvu lze použít i `-` nebo `;`
+- Více záznamů na jednom řádku lze oddělit `|`, čárkou, středníkem i mezerou
+  (`16-09-Marie 30-09-Jeroným`)
+
+Název záznamu obsahuje **jen jméno / popis události** – datum se do něj
+nepřidává. Pokud datum do názvu zadáte znovu (`16-09 | Marie 16-09`),
+integrace ho z názvu odstraní, aby se ve stavu senzoru nezobrazovalo dvakrát.
+Datum příští události najdete v senzorech `sensor.next_birthday_date`
+a `sensor.next_family_holiday_date` a v atributu `date`.
 
 Příklad — více záznamů na jednom řádku oddělených `|`:
 ```
@@ -97,7 +105,7 @@ Lze i kombinovat formáty a míchat `DD.MM` s `YYYY-MM-DD`:
 03.02 | Narozeniny máma | 2026-11-15 | Výročí svatby
 ```
 
-Vlastní události se zobrazují jak v **senzorech** (next_birthday, days_to_birthday atd.), tak v **kalendáři** (entita "Vlastní události").
+Vlastní události se zobrazují jak v **senzorech** (next_birthday, next_birthday_date, days_to_birthday atd.), tak v **kalendáři** (entita "Vlastní události").
 
 ### Nastavení připomínek
 V možnostech integrace nastavíte:
@@ -125,8 +133,10 @@ V možnostech integrace nastavíte:
 | `sensor.vacation_name` | Název aktuálních prázdnin | text nebo `None` |
 | `sensor.special_day` | Název dnešního významného dne | text nebo `None` |
 | `sensor.next_birthday` | Název příštích narozenin | text nebo `None` |
+| `sensor.next_birthday_date` | Datum příštích narozenin | datum (`2026-09-16`) nebo `None` |
 | `sensor.days_to_birthday` | Dní do příštích narozenin | číslo nebo `None` |
 | `sensor.next_family_holiday` | Název příštího rodinného svátku | text nebo `None` |
+| `sensor.next_family_holiday_date` | Datum příštího rodinného svátku | datum (`2026-09-16`) nebo `None` |
 | `sensor.days_to_family_holiday` | Dní do příštího rodinného svátku | číslo nebo `None` |
 | `sensor.next_holiday` | Název příštího svátku | text |
 | `sensor.next_special_day` | Název příštího významného dne | text |
