@@ -186,14 +186,46 @@ def calc_summer_vacation(year: int, country: str) -> tuple[date, date, str]:
 def calc_autumn_vacation(year: int, country: str) -> tuple[date, date, str]:
     """Calculate autumn vacation dates."""
     if country == COUNTRY_CZ:
-        # Thursday and Friday in week containing October 29
-        oct_29 = date(year, 10, 29)
-        days_since_thursday = (oct_29.weekday() - 3) % 7
-        thursday = oct_29 - timedelta(days=days_since_thursday)
-        friday = thursday + timedelta(days=1)
-        return thursday, friday, "Podzimní prázdniny"
+        # Two days attached to the state holiday on October 28 (vyhláška
+        # 16/2005 Sb.), placed by MŠMT so they join a weekend:
+        #   28. 10. Mon -> Tue 29., Wed 30.     (2024)
+        #   28. 10. Tue -> Mon 27., Wed 29.     (2025, holiday in between)
+        #   28. 10. Wed -> Thu 29., Fri 30.     (2026)
+        #   28. 10. Thu -> Wed 27., Fri 29.     (holiday in between)
+        #   28. 10. Fri -> Wed 26., Thu 27.     (2022)
+        #   28. 10. Sat -> Thu 26., Fri 27.     (2023)
+        #   28. 10. Sun -> Thu 25., Fri 26.
+        # The returned range may include October 28 itself, which is a
+        # state holiday (no school) anyway.
+        oct_28 = date(year, 10, 28)
+        start_offset, end_offset = {
+            0: (1, 2),
+            1: (-1, 1),
+            2: (1, 2),
+            3: (-1, 1),
+            4: (-2, -1),
+            5: (-2, -1),
+            6: (-3, -2),
+        }[oct_28.weekday()]
+        return (
+            oct_28 + timedelta(days=start_offset),
+            oct_28 + timedelta(days=end_offset),
+            "Podzimní prázdniny",
+        )
     else:
-        return date(year, 10, 30), date(year, 10, 31), "Jesenné prázdniny"
+        # SK: the last two working days (Mon-Fri) right before
+        # All Saints' Day (November 1), e.g.
+        #   2023: Mon 30. - Tue 31. 10.   (1. 11. is Wednesday)
+        #   2024: Wed 30. - Thu 31. 10.   (1. 11. is Friday)
+        #   2025: Thu 30. - Fri 31. 10.   (1. 11. is Saturday)
+        #   2026: Thu 29. - Fri 30. 10.   (1. 11. is Sunday)
+        end = date(year, 10, 31)
+        while end.weekday() >= 5:  # skip Saturday/Sunday
+            end -= timedelta(days=1)
+        start = end - timedelta(days=1)
+        while start.weekday() >= 5:
+            start -= timedelta(days=1)
+        return start, end, "Jesenné prázdniny"
 
 
 def calc_christmas_vacation(school_year: int, country: str) -> tuple[date, date, str]:

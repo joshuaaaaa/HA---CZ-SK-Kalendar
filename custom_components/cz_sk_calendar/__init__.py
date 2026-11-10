@@ -12,8 +12,15 @@ from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
-from .const import CONF_COUNTRY, COUNTRY_CZ, COUNTRY_SK, DOMAIN
-from .core import get_nameday, get_nameday_names
+from .const import CONF_COUNTRY, CONF_CUSTOM_VACATIONS, COUNTRY_CZ, COUNTRY_SK, DOMAIN
+from .core import (
+    clear_custom_vacations,
+    get_nameday,
+    get_nameday_names,
+    parse_custom_vacations,
+    set_custom_vacations,
+)
+from .entity import get_configured_country, get_configured_region
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -80,6 +87,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = entry.data
 
+    # User defined school days off (e.g. "ředitelské volno") are treated as
+    # vacations, so they affect school day / vacation sensors and calendars.
+    country = get_configured_country(entry)
+    region = get_configured_region(entry)
+    set_custom_vacations(
+        country,
+        region,
+        parse_custom_vacations(entry.options.get(CONF_CUSTOM_VACATIONS, ""), country),
+    )
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     entry.async_on_unload(entry.add_update_listener(async_update_options))
@@ -98,5 +115,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
+        clear_custom_vacations(
+            get_configured_country(entry), get_configured_region(entry)
+        )
 
     return unload_ok
