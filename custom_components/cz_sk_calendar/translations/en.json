@@ -24,13 +24,14 @@
     "step": {
       "init": {
         "title": "CZ/SK Calendar Options",
-        "description": "Optional lists: use DD.MM | Name (recurring yearly) or YYYY-MM-DD | Name (one-off). You can separate multiple items with | on one line.",
+        "description": "Optional lists: use DD.MM | Name (recurring yearly) or YYYY-MM-DD | Name (one-off). You can separate multiple items with | on one line. Custom school days off: YYYY-MM-DD | Name or a range YYYY-MM-DD - YYYY-MM-DD | Name (DD.MM.YYYY also works); these days count as vacation (not a school day).",
         "data": {
           "region": "Region",
           "custom_birthdays": "Custom birthdays",
           "custom_holidays": "Custom holidays",
           "reminder_days": "Reminder days in advance",
-          "reminder_daily": "Notify daily in window"
+          "reminder_daily": "Notify daily in window",
+          "custom_vacations": "Custom school days off (e.g. principal's day off)"
         }
       }
     }

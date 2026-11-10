@@ -24,13 +24,14 @@
     "step": {
       "init": {
         "title": "Nastavení CZ/SK kalendáře",
-        "description": "Volitelné seznamy událostí: použijte DD.MM | Název (opakovaně ročně) nebo YYYY-MM-DD | Název (jednorázově). Více položek můžete oddělit znakem | na jednom řádku.",
+        "description": "Volitelné seznamy událostí: použijte DD.MM | Název (opakovaně ročně) nebo YYYY-MM-DD | Název (jednorázově). Více položek můžete oddělit znakem | na jednom řádku. Vlastní prázdniny / ředitelské volno: YYYY-MM-DD | Název nebo rozsah YYYY-MM-DD - YYYY-MM-DD | Název (také DD.MM.YYYY); tyto dny se počítají jako prázdniny (nejsou školním dnem).",
         "data": {
           "region": "Region",
           "custom_birthdays": "Vlastní narozeniny",
           "custom_holidays": "Vlastní svátky",
           "reminder_days": "Kolik dní předem připomínat",
-          "reminder_daily": "Připomínat denně v okně"
+          "reminder_daily": "Připomínat denně v okně",
+          "custom_vacations": "Vlastní prázdniny / ředitelské volno"
         }
       }
     }

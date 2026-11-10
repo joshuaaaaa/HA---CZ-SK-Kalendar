@@ -18,6 +18,7 @@ from .const import (
     CONF_REGION,
     CONF_CUSTOM_BIRTHDAYS,
     CONF_CUSTOM_HOLIDAYS,
+    CONF_CUSTOM_VACATIONS,
     CONF_REMINDER_DAYS,
     CONF_REMINDER_DAILY,
     COUNTRY_CZ,
@@ -127,6 +128,7 @@ class CZSKCalendarOptionsFlow(OptionsFlow):
         )
         current_birthdays = self.config_entry.options.get(CONF_CUSTOM_BIRTHDAYS, "")
         current_holidays = self.config_entry.options.get(CONF_CUSTOM_HOLIDAYS, "")
+        current_vacations = self.config_entry.options.get(CONF_CUSTOM_VACATIONS, "")
         current_reminder_days = self.config_entry.options.get(CONF_REMINDER_DAYS, 3)
         current_reminder_daily = self.config_entry.options.get(CONF_REMINDER_DAILY, True)
 
@@ -137,6 +139,7 @@ class CZSKCalendarOptionsFlow(OptionsFlow):
                     vol.Required(CONF_REGION, default=current_region): vol.In(regions),
                     vol.Optional(CONF_CUSTOM_BIRTHDAYS, default=current_birthdays): str,
                     vol.Optional(CONF_CUSTOM_HOLIDAYS, default=current_holidays): str,
+                    vol.Optional(CONF_CUSTOM_VACATIONS, default=current_vacations): str,
                     vol.Optional(
                         CONF_REMINDER_DAYS,
                         default=current_reminder_days,

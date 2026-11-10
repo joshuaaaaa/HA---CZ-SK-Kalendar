@@ -1,6 +1,7 @@
 """Data sources for CZ/SK Calendar - holidays, namedays, special days."""
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 from functools import lru_cache
 from typing import Optional
@@ -155,16 +156,106 @@ def _get_vacations_cached(
     )
 
 
+# ----------------------------------------------------------------------------
+# Custom (user defined) school days off, e.g. "ředitelské volno"
+# ----------------------------------------------------------------------------
+
+# Keyed by (country, region) - a config entry is unique per country/region.
+_CUSTOM_VACATIONS: dict[tuple[str, str], tuple[tuple[date, date, str], ...]] = {}
+
+_DATE_PATTERN = r"(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\.\s*\d{1,2}\.\s*\d{4})"
+_CUSTOM_VACATION_RE = re.compile(
+    rf"(?P<start>{_DATE_PATTERN})"
+    rf"(?:\s*(?:-|–|—|\.\.|až|az|do)\s*(?P<end>{_DATE_PATTERN}))?"
+)
+_NAME_STRIP_CHARS = " \t\r\n|;,:-–—"
+
+
+def _parse_vacation_date(value: str) -> date | None:
+    """Parse YYYY-MM-DD or DD.MM.YYYY into a date."""
+    value = value.replace(" ", "")
+    try:
+        if "." in value:
+            day, month, year = (int(p) for p in value.split("."))
+        else:
+            year, month, day = (int(p) for p in value.split("-"))
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def default_custom_vacation_name(country: str) -> str:
+    """Name used when a custom day off has no name."""
+    return "Ředitelské volno" if country == COUNTRY_CZ else "Riaditeľské voľno"
+
+
+def parse_custom_vacations(raw: str, country: str) -> list[tuple[date, date, str]]:
+    """Parse user defined school days off.
+
+    Every entry starts with a date or a date range and may be followed by a
+    name (a default "ředitelské volno" name is used otherwise):
+      - ``2026-11-16 | Ředitelské volno``
+      - ``2026-11-16 - 2026-11-17 | Ředitelské volno``
+      - ``16.11.2026 - 17.11.2026 Ředitelské volno``
+    Several entries can be on one line; the next date starts a new entry.
+    """
+    if not raw:
+        return []
+
+    matches = list(_CUSTOM_VACATION_RE.finditer(raw))
+    result: list[tuple[date, date, str]] = []
+    for index, match in enumerate(matches):
+        start = _parse_vacation_date(match.group("start"))
+        end = _parse_vacation_date(match.group("end")) if match.group("end") else start
+        if start is None or end is None:
+            continue
+        if end < start:
+            start, end = end, start
+        name_end = matches[index + 1].start() if index + 1 < len(matches) else len(raw)
+        name = raw[match.end():name_end].strip(_NAME_STRIP_CHARS)
+        result.append((start, end, name or default_custom_vacation_name(country)))
+
+    return result
+
+
+def set_custom_vacations(
+    country: str, region: str, vacations: list[tuple[date, date, str]]
+) -> None:
+    """Register user defined days off for a country/region."""
+    key = (country, region)
+    if vacations:
+        _CUSTOM_VACATIONS[key] = tuple(sorted(vacations, key=lambda x: x[0]))
+    else:
+        _CUSTOM_VACATIONS.pop(key, None)
+
+
+def clear_custom_vacations(country: str, region: str) -> None:
+    """Remove user defined days off for a country/region."""
+    _CUSTOM_VACATIONS.pop((country, region), None)
+
+
 def get_all_vacations(
     school_year: int, country: str, region: str
 ) -> list[tuple[date, date, str]]:
     """Get all school vacations for a school year.
 
+    Includes user defined days off (e.g. "ředitelské volno") whose start
+    falls into the school year.
+
     A fresh list is returned on every call. Several callers extend the
     returned value with another school year, which would otherwise append to
     the cached entry over and over on every update.
     """
-    return list(_get_vacations_cached(school_year, country, region))
+    vacations = list(_get_vacations_cached(school_year, country, region))
+    custom = [
+        vac
+        for vac in _CUSTOM_VACATIONS.get((country, region), ())
+        if get_school_year(vac[0]) == school_year
+    ]
+    if custom:
+        vacations.extend(custom)
+        vacations.sort(key=lambda x: x[0])
+    return vacations
 
 
 def get_vacation_name(check_date: date, country: str, region: str) -> Optional[str]:

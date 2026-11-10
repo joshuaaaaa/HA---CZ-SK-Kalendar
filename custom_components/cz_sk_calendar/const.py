@@ -7,6 +7,7 @@ CONF_REGION: Final = "region"
 CONF_CUSTOM_EVENTS: Final = "custom_events"
 CONF_CUSTOM_BIRTHDAYS: Final = "custom_birthdays"
 CONF_CUSTOM_HOLIDAYS: Final = "custom_holidays"
+CONF_CUSTOM_VACATIONS: Final = "custom_vacations"
 CONF_REMINDER_DAYS: Final = "reminder_days"
 CONF_REMINDER_DAILY: Final = "reminder_daily"
 

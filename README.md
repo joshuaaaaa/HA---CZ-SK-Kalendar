@@ -107,6 +107,24 @@ Lze i kombinovat formáty a míchat `DD.MM` s `YYYY-MM-DD`:
 
 Vlastní události se zobrazují jak v **senzorech** (next_birthday, next_birthday_date, days_to_birthday atd.), tak v **kalendáři** (entita "Vlastní události").
 
+### Vlastní prázdniny / ředitelské volno
+V možnostech integrace je pole **Vlastní prázdniny / ředitelské volno**.
+Dny zde zadané se počítají jako **prázdniny**: `school_day` je v ně vypnutý,
+`vacation` zapnutý, zobrazí se v senzorech příštích prázdnin i v kalendáři
+prázdnin.
+
+Formát (datum nebo rozsah, za ním volitelně název; bez názvu se použije
+„Ředitelské volno“ / „Riaditeľské voľno“):
+- `YYYY-MM-DD | Název`
+- `YYYY-MM-DD - YYYY-MM-DD | Název` (rozsah více dní)
+- místo `YYYY-MM-DD` lze psát i `DD.MM.YYYY`
+- více záznamů lze psát na jeden řádek – každé další datum začíná nový záznam
+
+Příklad:
+```
+2026-11-16 | Ředitelské volno | 2027-05-06 - 2027-05-07 | Ředitelské volno
+```
+
 ### Nastavení připomínek
 V možnostech integrace nastavíte:
 - **Kolik dní předem připomínat** (`reminder_days`)
